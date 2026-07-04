@@ -1,5 +1,18 @@
 import Link from 'next/link';
 
+const STATS = [
+  { value: '5 min', label: 'to post a job' },
+  { value: '24 hr', label: 'average hire time' },
+  { value: '9', label: 'provinces covered' },
+  { value: '12+', label: 'sports supported' },
+];
+
+const HOW_IT_WORKS = [
+  { step: '1', title: 'Create your profile', desc: 'Schools list their sports programme. Coaches upload qualifications and set availability.' },
+  { step: '2', title: 'Post or browse',       desc: 'Schools post a vacancy in under 5 minutes. Coaches see open jobs filtered by sport and location.' },
+  { step: '3', title: 'Apply and connect',    desc: 'Coaches apply with a message. Schools review, accept, and chat — all in one place.' },
+];
+
 const FEATURES = [
   { icon: '⚽', title: 'Post a vacancy in minutes', desc: 'Specify sport, date, age group and pay. Qualified coaches apply instantly.' },
   { icon: '🔍', title: 'Smart coach matching', desc: 'Filtered by sport, location, experience and availability — no WhatsApp groups needed.' },
@@ -72,6 +85,18 @@ export default function LandingPage() {
         <p className="text-xs text-gray-400 mt-4">Free to start. No credit card required.</p>
       </section>
 
+      {/* Stats bar */}
+      <section className="border-y border-gray-100 py-8">
+        <div className="max-w-3xl mx-auto px-6 grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
+          {STATS.map(s => (
+            <div key={s.label}>
+              <p className="text-3xl font-extrabold text-green-700">{s.value}</p>
+              <p className="text-xs text-gray-500 font-semibold mt-1">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Role cards */}
       <section className="max-w-3xl mx-auto px-6 pb-20">
         <div className="grid sm:grid-cols-2 gap-4">
@@ -84,6 +109,20 @@ export default function LandingPage() {
                 className="inline-block bg-white/20 hover:bg-white/30 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-colors border border-white/30">
                 {r.cta} →
               </Link>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="max-w-4xl mx-auto px-6 py-20">
+        <h2 className="text-3xl font-extrabold text-gray-900 text-center mb-12">How it works</h2>
+        <div className="grid sm:grid-cols-3 gap-8">
+          {HOW_IT_WORKS.map(h => (
+            <div key={h.step} className="text-center">
+              <div className="w-12 h-12 bg-green-600 rounded-2xl flex items-center justify-center font-extrabold text-white text-xl mx-auto mb-4">{h.step}</div>
+              <h3 className="font-extrabold text-gray-900 mb-2">{h.title}</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">{h.desc}</p>
             </div>
           ))}
         </div>

@@ -131,6 +131,18 @@ create policy "messages: authenticated send" on messages for insert
 create policy "messages: mark read"          on messages for update
   using (auth.uid() = recipient_id);
 
+-- ── Realtime publication (needed for live messaging) ──────────
+-- Run after tables are created; idempotent
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and tablename = 'messages'
+  ) then
+    alter publication supabase_realtime add table messages;
+  end if;
+end $$;
+
 -- ── Trigger: auto-create profile on signup ─────────────────────
 create or replace function handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
