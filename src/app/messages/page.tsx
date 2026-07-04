@@ -28,14 +28,109 @@ function MessagesContent() {
   const [text,     setText]     = useState('');
   const [sending,  setSending]  = useState(false);
   const [nameMap,  setNameMap]  = useState<Record<string, string>>({});
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const bottomRef    = useRef<HTMLDivElement>(null);
+  const activeRef    = useRef<string | null>(withUser);  // avoid stale closure in realtime callback
+  const uidRef       = useRef<string>('');
+  const loadThreadsRef = useRef<(uid: string) => Promise<void>>();
+
+  // Keep refs in sync
+  useEffect(() => { activeRef.current = active; }, [active]);
 
   useEffect(() => {
     const supabase = createClient();
+
+    async function loadThreads(uid: string) {
+      const { data } = await supabase
+        .from('messages')
+        .select('*')
+        .or(`sender_id.eq.${uid},recipient_id.eq.${uid}`)
+        .order('created_at', { ascending: false });
+      if (!data) return;
+
+      const threadMap: Record<string, Thread> = {};
+      const otherIds = new Set<string>();
+      data.forEach(msg => {
+        const other = msg.sender_id === uid ? msg.recipient_id : msg.sender_id;
+        otherIds.add(other);
+        if (!threadMap[other]) {
+          threadMap[other] = { userId: other, name: other, lastMessage: msg.content, lastAt: msg.created_at, unread: 0, jobId: msg.job_id };
+        }
+        if (msg.recipient_id === uid && !msg.read) threadMap[other].unread++;
+      });
+
+      const ids = Array.from(otherIds);
+      if (ids.length > 0) {
+        const [{ data: coaches }, { data: schools }] = await Promise.all([
+          supabase.from('coach_profiles').select('user_id, full_name').in('user_id', ids),
+          supabase.from('schools').select('user_id, name, contact_name').in('user_id', ids),
+        ]);
+        const nm: Record<string, string> = {};
+        coaches?.forEach(c => { nm[c.user_id] = c.full_name; });
+        schools?.forEach(s => { nm[s.user_id] = s.contact_name ?? s.name; });
+        setNameMap(prev => ({ ...prev, ...nm }));
+        Object.values(threadMap).forEach(t => { t.name = nm[t.userId] ?? 'Unknown'; });
+      }
+
+      // If opening a new thread via ?with= that has no messages yet, pre-populate name
+      if (withUser && !threadMap[withUser]) {
+        const [{ data: coaches }, { data: schools }] = await Promise.all([
+          supabase.from('coach_profiles').select('user_id, full_name').eq('user_id', withUser),
+          supabase.from('schools').select('user_id, name, contact_name').eq('user_id', withUser),
+        ]);
+        const nm: Record<string, string> = {};
+        coaches?.forEach(c => { nm[c.user_id] = c.full_name; });
+        schools?.forEach(s => { nm[s.user_id] = s.contact_name ?? s.name; });
+        setNameMap(prev => ({ ...prev, ...nm }));
+      }
+
+      setThreads(Object.values(threadMap).sort((a, b) => b.lastAt.localeCompare(a.lastAt)));
+    }
+
+    loadThreadsRef.current = loadThreads;
+
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
       setCurrentUserId(user.id);
+      uidRef.current = user.id;
       await loadThreads(user.id);
+
+      // Realtime subscription for new incoming messages
+      const channel = supabase
+        .channel(`inbox:${user.id}`)
+        .on('postgres_changes', {
+          event:  'INSERT',
+          schema: 'public',
+          table:  'messages',
+          filter: `recipient_id=eq.${user.id}`,
+        }, async (payload) => {
+          const msg = payload.new as Message;
+
+          // If the message is from the active thread, append it and mark read
+          if (activeRef.current === msg.sender_id) {
+            setMessages(prev => {
+              if (prev.some(m => m.id === msg.id)) return prev;
+              return [...prev, msg];
+            });
+            await supabase.from('messages').update({ read: true }).eq('id', msg.id);
+          } else {
+            // Otherwise bump unread count on that thread
+            setThreads(prev => {
+              const existing = prev.find(t => t.userId === msg.sender_id);
+              if (existing) {
+                return prev.map(t => t.userId === msg.sender_id
+                  ? { ...t, unread: t.unread + 1, lastMessage: msg.content, lastAt: msg.created_at }
+                  : t
+                ).sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+              }
+              // New thread — reload to get the sender's name
+              if (loadThreadsRef.current) loadThreadsRef.current(uidRef.current);
+              return prev;
+            });
+          }
+        })
+        .subscribe();
+
+      return () => { supabase.removeChannel(channel); };
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -48,58 +143,6 @@ function MessagesContent() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  async function loadThreads(uid: string) {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from('messages')
-      .select('*')
-      .or(`sender_id.eq.${uid},recipient_id.eq.${uid}`)
-      .order('created_at', { ascending: false });
-
-    if (!data) return;
-
-    // Group into threads by the other user
-    const threadMap: Record<string, Thread> = {};
-    const otherIds = new Set<string>();
-
-    data.forEach(msg => {
-      const other = msg.sender_id === uid ? msg.recipient_id : msg.sender_id;
-      otherIds.add(other);
-      if (!threadMap[other]) {
-        threadMap[other] = { userId: other, name: other, lastMessage: msg.content, lastAt: msg.created_at, unread: 0, jobId: msg.job_id };
-      }
-      if (msg.recipient_id === uid && !msg.read) threadMap[other].unread++;
-    });
-
-    // Fetch names for all other users
-    const ids = Array.from(otherIds);
-    if (ids.length > 0) {
-      const [{ data: coaches }, { data: schools }] = await Promise.all([
-        supabase.from('coach_profiles').select('user_id, full_name').in('user_id', ids),
-        supabase.from('schools').select('user_id, name, contact_name').in('user_id', ids),
-      ]);
-      const nm: Record<string, string> = {};
-      coaches?.forEach(c => { nm[c.user_id] = c.full_name; });
-      schools?.forEach(s => { nm[s.user_id] = s.contact_name ?? s.name; });
-      setNameMap(nm);
-      Object.values(threadMap).forEach(t => { t.name = nm[t.userId] ?? 'Unknown'; });
-    }
-
-    setThreads(Object.values(threadMap).sort((a, b) => b.lastAt.localeCompare(a.lastAt)));
-
-    // If withUser passed, start that thread even if no messages yet
-    if (withUser && !threadMap[withUser]) {
-      const nm: Record<string, string> = {};
-      const [{ data: coaches }, { data: schools }] = await Promise.all([
-        supabase.from('coach_profiles').select('user_id, full_name').eq('user_id', withUser),
-        supabase.from('schools').select('user_id, name, contact_name').eq('user_id', withUser),
-      ]);
-      coaches?.forEach(c => { nm[c.user_id] = c.full_name; });
-      schools?.forEach(s => { nm[s.user_id] = s.contact_name ?? s.name; });
-      setNameMap(prev => ({ ...prev, ...nm }));
-    }
-  }
 
   async function loadMessages(otherId: string) {
     const supabase = createClient();
@@ -140,12 +183,24 @@ function MessagesContent() {
     if (data) {
       setMessages(prev => [...prev, data as Message]);
       setText('');
-      await loadThreads(currentUserId);
+      // Update thread list to reflect latest message
+      setThreads(prev => {
+        const msg = data as Message;
+        const existing = prev.find(t => t.userId === active);
+        if (existing) {
+          return prev.map(t => t.userId === active
+            ? { ...t, lastMessage: msg.content, lastAt: msg.created_at }
+            : t
+          ).sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+        }
+        return prev;
+      });
     }
     setSending(false);
   }
 
   const activeName = nameMap[active ?? ''] ?? 'Chat';
+  const totalUnread = threads.reduce((n, t) => n + t.unread, 0);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -158,7 +213,14 @@ function MessagesContent() {
             <span className="font-extrabold text-base text-gray-900">{activeName}</span>
           </>
         ) : (
-          <span className="font-extrabold text-base text-gray-900">Messages</span>
+          <div className="flex items-center gap-2">
+            <span className="font-extrabold text-base text-gray-900">Messages</span>
+            {totalUnread > 0 && (
+              <span className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                {totalUnread}
+              </span>
+            )}
+          </div>
         )}
       </div>
 
@@ -174,23 +236,25 @@ function MessagesContent() {
           ) : (
             threads.map(t => (
               <button key={t.userId}
-                onClick={() => { setActive(t.userId); loadMessages(t.userId); }}
+                onClick={() => { setActive(t.userId); activeRef.current = t.userId; loadMessages(t.userId); }}
                 className={`w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${active === t.userId ? 'bg-green-50' : ''}`}>
                 <div className="flex justify-between items-start gap-2">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 bg-green-100 rounded-full flex items-center justify-center font-extrabold text-green-700 text-xs shrink-0">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-xs shrink-0 ${
+                      t.unread > 0 ? 'bg-green-600 text-white' : 'bg-green-100 text-green-700'
+                    }`}>
                       {t.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-extrabold text-gray-900 truncate">{t.name}</p>
-                      <p className="text-xs text-gray-500 truncate">{t.lastMessage}</p>
+                      <p className={`text-sm truncate ${t.unread > 0 ? 'font-extrabold text-gray-900' : 'font-semibold text-gray-700'}`}>{t.name}</p>
+                      <p className={`text-xs truncate ${t.unread > 0 ? 'text-gray-700 font-semibold' : 'text-gray-500'}`}>{t.lastMessage}</p>
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-[10px] text-gray-400">{timeAgo(t.lastAt)}</p>
                     {t.unread > 0 && (
                       <span className="bg-green-600 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center ml-auto mt-1">
-                        {t.unread}
+                        {t.unread > 9 ? '9+' : t.unread}
                       </span>
                     )}
                   </div>
@@ -244,7 +308,7 @@ function MessagesContent() {
                   disabled={!text.trim() || sending}
                   className="text-sm font-bold bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl disabled:opacity-40 transition-colors"
                 >
-                  Send
+                  {sending ? '…' : 'Send'}
                 </button>
               </div>
             </>
