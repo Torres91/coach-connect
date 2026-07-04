@@ -18,27 +18,31 @@ export default async function BrowseJobsPage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const [{ data: profile }, { data: coachProfile }, { data: myApps }] = await Promise.all([
-    supabase.from('profiles').select('role').eq('id', user.id).single(),
-    supabase.from('coach_profiles').select('id, full_name, sports').eq('user_id', user.id).maybeSingle(),
-    supabase.from('applications').select('job_id').eq('coach_id',
-      (await supabase.from('coach_profiles').select('id').eq('user_id', user.id).single()).data?.id ?? ''
-    ),
-  ]);
+  const { data: profile }      = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const { data: coachProfile } = await supabase.from('coach_profiles').select('id, full_name').eq('user_id', user.id).maybeSingle();
 
   const sport = searchParams.sport;
-  let query = supabase
-    .from('jobs')
-    .select('*, school:schools(name, location, province)')
-    .eq('status', 'open')
-    .order('created_at', { ascending: false });
 
-  if (sport) query = query.eq('sport', sport);
+  // Fetch jobs and my applications in parallel
+  const [jobsResult, appsResult, unreadResult] = await Promise.all([
+    (() => {
+      let q = supabase
+        .from('jobs')
+        .select('*, school:schools(name, location, province)')
+        .eq('status', 'open')
+        .order('created_at', { ascending: false });
+      if (sport) q = q.eq('sport', sport);
+      return q;
+    })(),
+    coachProfile
+      ? supabase.from('applications').select('job_id').eq('coach_id', coachProfile.id)
+      : Promise.resolve({ data: [] }),
+    supabase.from('messages').select('id', { count: 'exact', head: true }).eq('recipient_id', user.id).eq('read', false),
+  ]);
 
-  const { data: jobs } = await query;
-  const jobList     = (jobs ?? []) as (Job & { school: { name: string; location: string; province: string } })[];
-  const appliedIds  = new Set((myApps ?? []).map(a => a.job_id));
-  const unreadCount = 0;
+  const jobList     = (jobsResult.data ?? []) as (Job & { school: { name: string; location: string; province: string } })[];
+  const appliedIds  = new Set((appsResult.data ?? []).map(a => a.job_id));
+  const unreadCount = unreadResult.count ?? 0;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 sm:pb-8">
@@ -50,18 +54,18 @@ export default async function BrowseJobsPage({
           <span className="text-xs text-gray-400 font-medium">{jobList.length} available</span>
         </div>
 
-        {/* Sport filter */}
+        {/* Sport filter pills */}
         <div className="flex gap-2 overflow-x-auto pb-2 mb-4 -mx-4 px-4">
           <Link href="/jobs"
             className={`text-xs font-bold px-3 py-1.5 rounded-xl border-2 whitespace-nowrap transition-all ${
-              !sport ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-100 text-gray-600'
+              !sport ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-100 text-gray-600 hover:border-gray-200'
             }`}>
             All sports
           </Link>
-          {SPORTS.slice(0, 6).map(s => (
+          {SPORTS.slice(0, 8).map(s => (
             <Link key={s} href={`/jobs?sport=${encodeURIComponent(s)}`}
               className={`text-xs font-bold px-3 py-1.5 rounded-xl border-2 whitespace-nowrap transition-all ${
-                sport === s ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-100 text-gray-600'
+                sport === s ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-100 text-gray-600 hover:border-gray-200'
               }`}>
               {s}
             </Link>
@@ -71,7 +75,7 @@ export default async function BrowseJobsPage({
         {jobList.length === 0 ? (
           <div className="bg-white rounded-2xl p-10 border border-gray-100 text-center">
             <div className="text-4xl mb-3">📋</div>
-            <p className="text-sm font-extrabold text-gray-500">No open jobs {sport ? `for ${sport}` : ''}</p>
+            <p className="text-sm font-extrabold text-gray-500">No open jobs{sport ? ` for ${sport}` : ''}</p>
             <p className="text-xs text-gray-400 mt-1">Check back soon — schools post new vacancies regularly.</p>
           </div>
         ) : (
@@ -81,7 +85,7 @@ export default async function BrowseJobsPage({
               return (
                 <div key={job.id} className="bg-white rounded-2xl border border-gray-100 p-4">
                   <div className="flex justify-between items-start gap-3 mb-3">
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm font-extrabold text-gray-900">{job.title}</p>
                       <p className="text-xs text-gray-500 mt-0.5 font-semibold">
                         🏫 {job.school?.name}
@@ -93,11 +97,11 @@ export default async function BrowseJobsPage({
                     )}
                   </div>
 
-                  <div className="flex flex-wrap gap-2 mb-3">
+                  <div className="flex flex-wrap gap-1.5 mb-3">
                     <span className="text-xs font-bold bg-green-50 text-green-700 px-2 py-0.5 rounded-lg">⚽ {job.sport}</span>
-                    {job.age_group && <span className="text-xs font-bold bg-gray-50 text-gray-600 px-2 py-0.5 rounded-lg">{job.age_group}</span>}
-                    {job.date && <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded-lg">{formatDate(job.date)}</span>}
-                    {job.time && <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded-lg">{job.time}</span>}
+                    {job.age_group    && <span className="text-xs font-bold bg-gray-50 text-gray-600 px-2 py-0.5 rounded-lg">{job.age_group}</span>}
+                    {job.date         && <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded-lg">{formatDate(job.date)}</span>}
+                    {job.time         && <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded-lg">{job.time}</span>}
                     {job.duration_hours && <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded-lg">{job.duration_hours}h</span>}
                   </div>
 
@@ -106,11 +110,7 @@ export default async function BrowseJobsPage({
                   )}
 
                   {coachProfile && (
-                    <ApplyButton
-                      jobId={job.id}
-                      coachId={coachProfile.id}
-                      hasApplied={hasApplied}
-                    />
+                    <ApplyButton jobId={job.id} hasApplied={hasApplied} />
                   )}
                 </div>
               );

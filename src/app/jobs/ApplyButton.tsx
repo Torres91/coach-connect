@@ -2,11 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 
-export default function ApplyButton({ jobId, coachId, hasApplied }: {
+export default function ApplyButton({ jobId, hasApplied }: {
   jobId: string;
-  coachId: string;
   hasApplied: boolean;
 }) {
   const router = useRouter();
@@ -14,29 +12,32 @@ export default function ApplyButton({ jobId, coachId, hasApplied }: {
   const [loading,  setLoading]  = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [message,  setMessage]  = useState('');
+  const [error,    setError]    = useState('');
 
   async function apply() {
     setLoading(true);
-    const supabase = createClient();
-    const { error } = await supabase.from('applications').insert({
-      job_id:   jobId,
-      coach_id: coachId,
-      message:  message.trim() || null,
-      status:   'pending',
+    setError('');
+    const res = await fetch('/api/applications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId, message }),
     });
-    if (!error) {
+    if (res.ok) {
       setApplied(true);
       setShowForm(false);
       router.refresh();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? 'Failed to apply. Please try again.');
     }
     setLoading(false);
   }
 
   if (applied) {
     return (
-      <div className="flex items-center gap-1.5 text-xs font-bold text-green-700">
-        <span className="bg-green-100 px-3 py-1.5 rounded-lg">✅ Applied</span>
-      </div>
+      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-100 px-3 py-1.5 rounded-lg">
+        ✅ Applied
+      </span>
     );
   }
 
@@ -49,13 +50,15 @@ export default function ApplyButton({ jobId, coachId, hasApplied }: {
           placeholder="Optional: introduce yourself or ask a question…"
           value={message}
           onChange={e => setMessage(e.target.value)}
+          autoFocus
         />
+        {error && <p className="text-xs text-red-500 font-semibold">{error}</p>}
         <div className="flex gap-2">
           <button onClick={apply} disabled={loading}
             className="text-xs font-bold bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl disabled:opacity-40 transition-colors">
             {loading ? 'Applying…' : 'Submit application →'}
           </button>
-          <button onClick={() => setShowForm(false)}
+          <button onClick={() => { setShowForm(false); setError(''); }}
             className="text-xs font-bold text-gray-500 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors">
             Cancel
           </button>

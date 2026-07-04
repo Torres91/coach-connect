@@ -18,10 +18,11 @@ const COACH_NAV = [
 ];
 
 const SCHOOL_NAV = [
-  { href: '/school/dashboard', label: 'Dashboard', icon: '🏠' },
-  { href: '/school/post-job',  label: 'Post Job', icon: '➕' },
+  { href: '/school/dashboard', label: 'Dashboard',    icon: '🏠' },
+  { href: '/school/post-job',  label: 'Post Job',     icon: '➕' },
   { href: '/coaches',          label: 'Find Coaches', icon: '🔍' },
-  { href: '/messages',         label: 'Messages', icon: '💬' },
+  { href: '/messages',         label: 'Messages',     icon: '💬' },
+  { href: '/school/profile',   label: 'Settings',     icon: '⚙️' },
 ];
 
 export default function NavBar({ role, name, unreadCount = 0 }: Props) {
