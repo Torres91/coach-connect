@@ -2,8 +2,8 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import NavBar from '@/components/NavBar';
-import { formatDate, formatZAR } from '@/lib/utils';
-import type { Application, Job } from '@/types';
+import { formatDate, formatZAR, timeAgo } from '@/lib/utils';
+import type { Application, Job, Message } from '@/types';
 
 export default async function CoachDashboardPage() {
   const supabase = createClient();
@@ -19,8 +19,8 @@ export default async function CoachDashboardPage() {
 
   if (!profile) redirect('/coach/profile');
 
-  // Now fetch applications and unread count in parallel
-  const [{ data: apps }, { count: unreadCount }] = await Promise.all([
+  // Now fetch applications, unread messages, and activity feed in parallel
+  const [{ data: apps }, { data: unreadMsgs }] = await Promise.all([
     supabase
       .from('applications')
       .select('*, job:jobs(*, school:schools(name, location))')
@@ -29,13 +29,16 @@ export default async function CoachDashboardPage() {
       .limit(10),
     supabase
       .from('messages')
-      .select('id', { count: 'exact', head: true })
+      .select('*')
       .eq('recipient_id', user.id)
-      .eq('read', false),
+      .eq('read', false)
+      .order('created_at', { ascending: false })
+      .limit(5),
   ]);
 
   const applications = (apps ?? []) as (Application & { job: Job & { school: { name: string; location: string } } })[];
-  const unread = unreadCount ?? 0;
+  const notifications = (unreadMsgs ?? []) as Message[];
+  const unread = notifications.length;
 
   const accepted = applications.filter(a => a.status === 'accepted');
   const pending  = applications.filter(a => a.status === 'pending');
@@ -87,6 +90,28 @@ export default async function CoachDashboardPage() {
           </div>
           <span className="text-green-500 text-xl">→</span>
         </Link>
+
+        {/* Activity / Notifications */}
+        {notifications.length > 0 && (
+          <div className="mb-5">
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-sm font-extrabold text-gray-900 flex items-center gap-1.5">
+                🔔 New activity
+                <span className="bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{notifications.length}</span>
+              </h2>
+              <Link href="/messages" className="text-xs font-bold text-green-700 hover:underline">View messages →</Link>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {notifications.map(msg => (
+                <Link key={msg.id} href="/messages"
+                  className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 block hover:border-amber-300 transition-colors">
+                  <p className="text-xs font-semibold text-gray-800 leading-relaxed line-clamp-2">{msg.content}</p>
+                  <p className="text-[10px] text-amber-600 font-bold mt-1">{timeAgo(msg.created_at)}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Applications */}
         <div>
