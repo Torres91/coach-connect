@@ -6,6 +6,7 @@ import { formatZAR } from '@/lib/utils';
 import type { CoachProfile } from '@/types';
 import { SPORTS, SA_PROVINCES } from '@/types';
 import InviteButton from './InviteButton';
+import FavouriteButton from '@/components/FavouriteButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,14 @@ export default async function BrowseCoachesPage({
     supabase.from('schools').select('id, name, contact_name, user_id').eq('user_id', user.id).maybeSingle(),
     supabase.from('messages').select('id', { count: 'exact', head: true }).eq('recipient_id', user.id).eq('read', false),
   ]);
+
+  // Fetch school's saved coaches (if school user)
+  let favouriteIds = new Set<string>();
+  if (school) {
+    const { data: favs } = await supabase
+      .from('favourite_coaches').select('coach_id').eq('school_id', school.id);
+    favouriteIds = new Set((favs ?? []).map((f: { coach_id: string }) => f.coach_id));
+  }
   const unreadCount = unreadRaw ?? 0;
 
   const { sport, province, sort = 'exp' } = searchParams;
@@ -187,10 +196,15 @@ export default async function BrowseCoachesPage({
                         {formatZAR(coach.hourly_rate)}<span className="text-xs font-normal text-gray-400">/hr</span>
                       </p>
                     )}
-                    <Link href={`/messages?with=${coach.user_id}`}
-                      className="text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition-colors">
-                      Message
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      {isSchool && (
+                        <FavouriteButton coachId={coach.id} isFavourite={favouriteIds.has(coach.id)} />
+                      )}
+                      <Link href={`/messages?with=${coach.user_id}`}
+                        className="text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition-colors">
+                        Message
+                      </Link>
+                    </div>
                     {isSchool && school && (
                       <InviteButton
                         coachUserId={coach.user_id}

@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import NavBar from '@/components/NavBar';
 import EmergencyPost from '@/components/EmergencyPost';
+import FavouriteButton from '@/components/FavouriteButton';
+import InviteButton from '@/app/coaches/InviteButton';
 import { formatDate, formatZAR } from '@/lib/utils';
 import type { Job } from '@/types';
 
@@ -28,7 +30,7 @@ export default async function SchoolDashboardPage() {
     redirect('/school/profile');
   }
 
-  const [{ data: jobs }, { count: unreadRaw }, { data: emergencyJobs }] = await Promise.all([
+  const [{ data: jobs }, { count: unreadRaw }, { data: emergencyJobs }, { data: favData }] = await Promise.all([
     supabase
       .from('jobs')
       .select('*, applications(id, status)')
@@ -44,10 +46,18 @@ export default async function SchoolDashboardPage() {
       .in('status', ['open', 'filled'])
       .order('created_at', { ascending: false })
       .limit(5),
+    supabase
+      .from('favourite_coaches')
+      .select('coach_id, coach:coach_profiles(id, user_id, full_name, sports, location, available, hourly_rate)')
+      .eq('school_id', school.id)
+      .order('created_at', { ascending: false })
+      .limit(20),
   ]);
   const unreadCount = unreadRaw ?? 0;
 
-  const jobList = (jobs ?? []) as (Job & { applications: { id: string; status: string }[] })[];
+  const jobList     = (jobs ?? []) as (Job & { applications: { id: string; status: string }[] })[];
+  type FavCoachRow = { coach_id: string; coach: { id: string; user_id: string; full_name: string; sports: string[]; location: string | null; available: boolean; hourly_rate: number | null } | null };
+  const myCoaches = ((favData ?? []) as unknown as FavCoachRow[]).filter(f => f.coach !== null) as (FavCoachRow & { coach: NonNullable<FavCoachRow['coach']> })[];
 
   const openJobs    = jobList.filter(j => j.status === 'open');
   const filledJobs  = jobList.filter(j => j.status === 'filled');
@@ -95,6 +105,59 @@ export default async function SchoolDashboardPage() {
             </div>
           ))}
         </div>
+
+        {/* My Coaches */}
+        {myCoaches.length > 0 && (
+          <div className="mb-5">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-sm font-extrabold text-gray-900 flex items-center gap-1.5">
+                ❤️ My Coaches
+                <span className="text-xs font-semibold text-gray-400">({myCoaches.length})</span>
+              </h2>
+              <Link href="/coaches" className="text-xs font-bold text-blue-600 hover:underline">+ Add coaches</Link>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-none">
+              {myCoaches.map(({ coach_id, coach }) => (
+                <div key={coach_id}
+                  className="bg-white rounded-2xl border border-gray-100 p-4 shrink-0 w-48 flex flex-col gap-2">
+                  <div className="flex items-start justify-between gap-1">
+                    <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-400 rounded-xl flex items-center justify-center font-extrabold text-white text-sm shrink-0">
+                      {coach.full_name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)}
+                    </div>
+                    <FavouriteButton coachId={coach.id} isFavourite size="sm" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-extrabold text-gray-900 leading-tight line-clamp-1">{coach.full_name}</p>
+                    {coach.location && (
+                      <p className="text-[10px] text-gray-400 font-semibold mt-0.5 truncate">📍 {coach.location}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {coach.sports.slice(0, 3).map((s: string) => (
+                      <span key={s} className="text-[10px] font-bold bg-green-50 text-green-700 px-1.5 py-0.5 rounded-md">{s}</span>
+                    ))}
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full self-start ${
+                    coach.available ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {coach.available ? '✅ Available' : '⏸ Unavailable'}
+                  </span>
+                  <div className="flex gap-1.5 mt-auto pt-1">
+                    <Link href={`/messages?with=${coach.user_id}`}
+                      className="flex-1 text-center text-[10px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1.5 rounded-lg transition-colors">
+                      💬
+                    </Link>
+                    <InviteButton
+                      coachUserId={coach.user_id}
+                      coachName={coach.full_name}
+                      schoolUserId={user.id}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Jobs list */}
         <div>
