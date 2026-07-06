@@ -47,6 +47,7 @@ export interface CoachProfile {
   hourly_rate: number | null;
   avatar_url: string | null;
   available: boolean;
+  available_days: string[];  // e.g. ['Monday','Wednesday','Friday']
   created_at: string;
 }
 
@@ -63,7 +64,38 @@ export interface Job {
   notes: string | null;
   status: JobStatus;
   created_at: string;
+  // Booking model
+  booking_type:     'single' | 'recurring' | 'term' | null;
+  role:             string | null;
+  num_required:     number | null;
+  start_date:       string | null;
+  end_date:         string | null;
+  term_number:      number | null;
+  term_year:        number | null;
+  days_of_week:     string[] | null;
+  time_start:       string | null;
+  time_end:         string | null;
+  // Requirements
+  req_first_aid:          boolean | null;
+  req_police_clearance:   boolean | null;
+  req_transport:          boolean | null;
+  req_coaching_badge:     boolean | null;
+  req_experience_years:   number | null;
+  // Budget
+  budget_amount:    number | null;
+  budget_period:    'session' | 'hour' | 'week' | 'month' | null;
   school?: School;
+}
+
+export interface Session {
+  id: string;
+  job_id: string;
+  date: string;
+  time_start: string | null;
+  time_end: string | null;
+  status: 'scheduled' | 'completed' | 'cancelled';
+  coach_id: string | null;
+  created_at: string;
 }
 
 export interface Application {

@@ -104,6 +104,13 @@ export default async function BrowseJobsPage({
                     {job.time         && <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded-lg">{job.time}</span>}
                     {job.duration_hours && <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded-lg">{job.duration_hours}h</span>}
                   </div>
+                  {job.booking_type && (
+                    <p className="text-xs font-semibold text-gray-500 mb-3">
+                      📋 {job.booking_type === 'single' ? 'Single session' : job.booking_type === 'term' ? `Term ${job.term_number ?? ''}` : 'Recurring'}
+                      {job.days_of_week && job.days_of_week.length > 0 && ` · ${job.days_of_week.join(', ')}`}
+                      {job.budget_amount && ` · R${job.budget_amount}/${job.budget_period ?? 'session'}`}
+                    </p>
+                  )}
 
                   {job.notes && (
                     <p className="text-xs text-gray-500 mb-3 leading-relaxed">{job.notes}</p>

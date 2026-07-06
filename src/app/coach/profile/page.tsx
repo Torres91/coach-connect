@@ -7,6 +7,7 @@ import { SPORTS, SA_PROVINCES } from '@/types';
 import type { CoachProfile } from '@/types';
 
 const input = 'w-full text-sm px-3 py-2.5 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-green-400 font-semibold';
+const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
 export default function CoachProfilePage() {
   const router  = useRouter();
@@ -22,6 +23,7 @@ export default function CoachProfilePage() {
     experience_years: 0,
     hourly_rate:      null,
     available:        true,
+    available_days:   [],
   });
 
   useEffect(() => {
@@ -60,6 +62,7 @@ export default function CoachProfilePage() {
       experience_years: profile.experience_years ?? 0,
       hourly_rate:      profile.hourly_rate ?? null,
       available:        profile.available ?? true,
+      available_days:   profile.available_days ?? [],
     };
 
     const { error } = await supabase
@@ -71,6 +74,15 @@ export default function CoachProfilePage() {
       setSaved(true);
       setTimeout(() => router.push('/coach/dashboard'), 800);
     }
+  }
+
+  function toggleDay(day: string) {
+    setProfile(p => ({
+      ...p,
+      available_days: (p.available_days ?? []).includes(day)
+        ? (p.available_days ?? []).filter(d => d !== day)
+        : [...(p.available_days ?? []), day],
+    }));
   }
 
   function toggleSport(sport: string) {
@@ -182,7 +194,7 @@ export default function CoachProfilePage() {
           </div>
 
           {/* Availability */}
-          <div className="bg-white rounded-2xl p-5 border border-gray-100">
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-extrabold text-gray-800">Available for bookings</p>
@@ -195,6 +207,21 @@ export default function CoachProfilePage() {
               >
                 <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${profile.available ? 'translate-x-6' : 'translate-x-0.5'}`} />
               </button>
+            </div>
+
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Days available</p>
+              <div className="flex flex-wrap gap-2">
+                {DAYS.map(day => {
+                  const active = (profile.available_days ?? []).includes(day);
+                  return (
+                    <button key={day} type="button" onClick={() => toggleDay(day)}
+                      className={`text-xs font-extrabold px-3 py-1.5 rounded-xl border-2 transition-all ${active ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-100 text-gray-500 hover:border-gray-200'}`}>
+                      {day.slice(0, 3)}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
