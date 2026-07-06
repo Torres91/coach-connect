@@ -18,7 +18,6 @@ function expiresIn(expiresAt: string, now: number): string {
 
 export default function EmergencyJobBanner({
   initialJobs,
-  coachProfileId,
 }: {
   initialJobs: EJob[];
   coachProfileId: string;
