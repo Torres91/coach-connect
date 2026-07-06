@@ -4,17 +4,12 @@ import { createClient } from '@/lib/supabase/server';
 import NavBar from '@/components/NavBar';
 import { formatZAR } from '@/lib/utils';
 import type { CoachProfile } from '@/types';
-import { SPORTS, SA_PROVINCES } from '@/types';
+import { SPORTS } from '@/types';
 import InviteButton from './InviteButton';
 import FavouriteButton from '@/components/FavouriteButton';
+import CoachFilters from './CoachFilters';
 
 export const dynamic = 'force-dynamic';
-
-const SORT_OPTIONS = [
-  { value: 'exp',  label: 'Experience' },
-  { value: 'rate', label: 'Rate (low)' },
-  { value: 'name', label: 'Name' },
-] as const;
 
 export default async function BrowseCoachesPage({
   searchParams,
@@ -95,40 +90,7 @@ export default async function BrowseCoachesPage({
         </div>
 
         {/* Province + sort row */}
-        <div className="flex gap-2 mb-4 items-center">
-          <div className="relative flex-1">
-            <select
-              value={province ?? ''}
-              onChange={e => {
-                const p = e.target.value;
-                const url = new URL(window.location.href);
-                if (p) url.searchParams.set('province', p); else url.searchParams.delete('province');
-                window.location.href = url.toString();
-              }}
-              className="w-full text-xs font-bold px-3 py-2 border-2 border-gray-100 rounded-xl bg-white focus:outline-none focus:border-blue-400 appearance-none"
-            >
-              <option value="">All provinces</option>
-              {SA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-[10px]">▼</span>
-          </div>
-
-          <div className="relative">
-            <select
-              value={sort}
-              onChange={e => {
-                const s = e.target.value;
-                const url = new URL(window.location.href);
-                if (s !== 'exp') url.searchParams.set('sort', s); else url.searchParams.delete('sort');
-                window.location.href = url.toString();
-              }}
-              className="text-xs font-bold px-3 py-2 border-2 border-gray-100 rounded-xl bg-white focus:outline-none focus:border-blue-400 appearance-none pr-7"
-            >
-              {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>Sort: {o.label}</option>)}
-            </select>
-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-[10px]">▼</span>
-          </div>
-        </div>
+        <CoachFilters province={province} sort={sort} />
 
         {/* Active filters */}
         {(sport || province) && (
