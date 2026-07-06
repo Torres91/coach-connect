@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { SPORTS, AGE_GROUPS } from '@/types';
 import { formatZAR, generateSessionDates } from '@/lib/utils';
 
-const inp = 'w-full text-sm px-3 py-2.5 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-blue-400 font-semibold bg-white';
+const inp = 'w-full text-sm px-3 py-2.5 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-blue-400 font-semibold bg-white text-gray-900';
 
 const ROLES   = ['Coach', 'Referee', 'Official', 'Trainer'];
 const DAYS    = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];

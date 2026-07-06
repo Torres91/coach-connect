@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { SA_PROVINCES } from '@/types';
 
-const input = 'w-full text-sm px-3 py-2.5 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-blue-400 font-semibold';
+const input = 'w-full text-sm px-3 py-2.5 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-blue-400 font-semibold text-gray-900';
 
 export default function SchoolProfilePage() {
   const router = useRouter();
