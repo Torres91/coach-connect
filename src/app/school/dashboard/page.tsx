@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import NavBar from '@/components/NavBar';
+import EmergencyPost from '@/components/EmergencyPost';
 import { formatDate, formatZAR } from '@/lib/utils';
 import type { Job } from '@/types';
 
@@ -27,7 +28,7 @@ export default async function SchoolDashboardPage() {
     redirect('/school/profile');
   }
 
-  const [{ data: jobs }, { count: unreadRaw }] = await Promise.all([
+  const [{ data: jobs }, { count: unreadRaw }, { data: emergencyJobs }] = await Promise.all([
     supabase
       .from('jobs')
       .select('*, applications(id, status)')
@@ -35,6 +36,14 @@ export default async function SchoolDashboardPage() {
       .order('created_at', { ascending: false })
       .limit(20),
     supabase.from('messages').select('id', { count: 'exact', head: true }).eq('recipient_id', user.id).eq('read', false),
+    supabase
+      .from('jobs')
+      .select('*')
+      .eq('school_id', school.id)
+      .eq('is_emergency', true)
+      .in('status', ['open', 'filled'])
+      .order('created_at', { ascending: false })
+      .limit(5),
   ]);
   const unreadCount = unreadRaw ?? 0;
 
@@ -54,7 +63,7 @@ export default async function SchoolDashboardPage() {
           <p className="text-xs font-bold text-blue-200 uppercase tracking-widest mb-1">Head of Sport</p>
           <h1 className="text-xl font-extrabold leading-tight">{school.name}</h1>
           {school.location && <p className="text-sm text-blue-200 mt-1">📍 {school.location}</p>}
-          <div className="flex gap-2 mt-3 flex-wrap">
+          <div className="flex gap-2 mt-3 flex-wrap items-center">
             <Link href="/school/post-job"
               className="text-sm font-extrabold bg-white text-blue-700 px-4 py-2 rounded-xl hover:bg-blue-50 transition-colors">
               + Post a job
@@ -67,6 +76,7 @@ export default async function SchoolDashboardPage() {
               className="text-sm font-bold bg-white/10 hover:bg-white/20 text-blue-100 px-4 py-2 rounded-xl transition-colors">
               ⚙️ Settings
             </Link>
+            <EmergencyPost schoolId={school.id} initialJobs={(emergencyJobs ?? []) as Job[]} />
           </div>
         </div>
 

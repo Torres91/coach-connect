@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import NavBar from '@/components/NavBar';
+import EmergencyJobBanner from '@/components/EmergencyJobBanner';
 import { formatDate, formatZAR, timeAgo } from '@/lib/utils';
 import type { Application, Job, Message } from '@/types';
 
@@ -19,8 +20,8 @@ export default async function CoachDashboardPage() {
 
   if (!profile) redirect('/coach/profile');
 
-  // Now fetch applications, unread messages, and activity feed in parallel
-  const [{ data: apps }, { data: unreadMsgs }] = await Promise.all([
+  // Fetch applications, unread messages, and live emergency jobs in parallel
+  const [{ data: apps }, { data: unreadMsgs }, { data: emergencyJobs }] = await Promise.all([
     supabase
       .from('applications')
       .select('*, job:jobs(*, school:schools(name, location))')
@@ -34,6 +35,13 @@ export default async function CoachDashboardPage() {
       .eq('read', false)
       .order('created_at', { ascending: false })
       .limit(5),
+    supabase
+      .from('jobs')
+      .select('*, school:schools(name, location)')
+      .eq('is_emergency', true)
+      .eq('status', 'open')
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false }),
   ]);
 
   const applications = (apps ?? []) as (Application & { job: Job & { school: { name: string; location: string } } })[];
@@ -48,6 +56,12 @@ export default async function CoachDashboardPage() {
       <NavBar role="coach" name={profile.full_name} unreadCount={unread} />
 
       <div className="max-w-2xl mx-auto px-4 pt-6">
+        {/* Emergency jobs — always first */}
+        <EmergencyJobBanner
+          initialJobs={(emergencyJobs ?? []) as Job[]}
+          coachProfileId={profile.id}
+        />
+
         {/* Welcome banner */}
         <div className="bg-gradient-to-br from-green-600 to-emerald-500 rounded-3xl p-6 mb-5 text-white">
           <p className="text-xs font-bold text-green-200 uppercase tracking-widest mb-1">Welcome back</p>

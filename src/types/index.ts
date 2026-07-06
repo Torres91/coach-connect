@@ -84,6 +84,8 @@ export interface Job {
   // Budget
   budget_amount:    number | null;
   budget_period:    'session' | 'hour' | 'week' | 'month' | null;
+  is_emergency:     boolean | null;
+  expires_at:       string | null;
   school?: School;
 }
 
