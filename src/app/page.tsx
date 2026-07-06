@@ -89,7 +89,7 @@ export default function LandingPage() {
             <span className="font-extrabold text-lg text-gray-900">CoachConnect</span>
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/login" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors hidden sm:block">
+            <Link href="/login" className="text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">
               Sign in
             </Link>
             <Link href="/register?role=school"
